@@ -1,6 +1,6 @@
-import cv2
-import time
-import keyboard
+#import cv2
+#import time
+#import keyboard
 from ultralytics import YOLO
 
 #capture = cv2.VideoCapture(0)
