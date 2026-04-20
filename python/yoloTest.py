@@ -9,7 +9,6 @@ model = YOLO("yolo26n.pt")
 
 def YOLOingIt():
         ret, frame = capture.read()
-        
         results = model.predict(frame, verbose=False)
         for r in results:
                 cv2.imshow("camera", r.plot())
@@ -17,8 +16,9 @@ def YOLOingIt():
                 boxes = r.boxes
         for box in boxes:
                 clsid = box.cls.int()
+                conf = round(box.conf.item(),2)
                 name = r.names[clsid.item()]
-                print(name)
+                print(name, " ", conf)
 
  
 
