@@ -18,7 +18,7 @@ def YOLOingIt():
                 clsid = box.cls.int()
                 conf = round(box.conf.item(),2)
                 name = r.names[clsid.item()]
-                print(name, " ", conf)
+                print("This is a", name + ". (" + str(conf) + ")")
 
  
 
@@ -27,11 +27,13 @@ while True:
                 cv2.destroyAllWindows()
                 YOLOingIt()
                 playsound("C:/RMIT/2026/Design 3/HDGlasses/[Pigsy]What kind of object is this.mp3")
-                time.sleep(0.5)
+                time.sleep(0.4)
 
         if keyboard.is_pressed("q"):
                 cv2.destroyAllWindows()
-                time.sleep(0.5)
+                time.sleep(0.4)
 
         if keyboard.is_pressed("esc"):
                 break
+
+        #baller
