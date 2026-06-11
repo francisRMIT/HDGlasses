@@ -1,35 +1,39 @@
+# Importing libraries
 import os
 import platform
 import subprocess
 import platform
 import subprocess
 import time
-import cv2
-from threading import Thread
-from ultralytics import YOLO
-from playsound3 import playsound
+import cv2 # webcam during testing
+from threading import Thread # audio helper
+from ultralytics import YOLO # yolo for object detection
+from playsound3 import playsound # audio
 
+# for tts
 try:
-    import pyttsx3
+    import pyttsx3 
 except ImportError:
     pyttsx3 = None
 
+# for reading data from ultrasonic sensor
 try:
     import serial
 except ImportError:
     serial = None
 
+# for ai descriptions
 try:
     import openai
 except ImportError:
     openai = None
 
-# ================== CONFIG ==================
+# Config stuff
 script_dir = os.path.dirname(os.path.abspath(__file__))
-sound_path = os.path.join(script_dir, "[Pigsy]What kind of object is this.mp3")
+sound_path = os.path.join(script_dir, "[Pigsy]What kind of object is this.mp3") # example sound 
 window_name = "camera"
 
-# Model configuration
+# Model configuration (using latest version of YOLO)
 model_path = "yolo26n.pt"
 if not os.path.isfile(model_path):
     alt_model = "yolov8n.pt"
@@ -51,7 +55,7 @@ confidence_threshold = 0.25
 
 # Distance tracker configuration
 focal_length = 800.0  # adjust based on camera calibration
-known_object_heights = {
+known_object_heights = { # note: adjust + add more of these in the future
     "person": 1.7,
     "bicycle": 1.2,
     "car": 1.5,
@@ -67,6 +71,7 @@ known_object_heights = {
     "bed": 1.2,
 }
 
+# list of road hazards
 hazard_collision_labels = {
     "car",
     "truck",
@@ -76,6 +81,7 @@ hazard_collision_labels = {
     "person",
 }
 
+#list of household hazards
 hazard_household_labels = {
     "knife",
     "scissors",
@@ -95,7 +101,7 @@ hazard_household_labels = {
     "book",
 }
 
-# ================== CAMERA SETUP ==================
+# Camera setup section,
 capture = cv2.VideoCapture(0)
 
 if not capture.isOpened():
@@ -113,6 +119,7 @@ actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
 actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 print(f"Camera opened at resolution: {actual_width}x{actual_height}")
 
+# used for debugging on windows device, likely taken out when deployed on the actual glasses
 cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 cv2.resizeWindow(window_name, actual_width, actual_height)
 cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
@@ -138,7 +145,7 @@ while True:
         cv2.destroyAllWindows()
         raise SystemExit
 
-# ================== AUDIO ==================
+# Audio section
 sound_playing = False
 
 # Validate the sound file before use
@@ -146,6 +153,7 @@ def valid_sound_file(path):
     return path and os.path.isfile(path)
 
 if not valid_sound_file(sound_path):
+    # debug
     print("Warning: sound file not found. Audio playback is disabled.")
     print("Expected sound file at:", sound_path)
     sound_path = None
@@ -153,7 +161,7 @@ if not valid_sound_file(sound_path):
 engine = None
 ultrasonic_serial = None
 
-# ================== INPUT DEBOUNCE ==================
+# input debouncing 
 key_debounce_ms = 250
 last_key = None
 last_key_time = 0
@@ -176,7 +184,7 @@ def estimate_distance_text(label, box, frame_height):
         return "Medium"
     return "Close"
 
-
+# function to help convert raw images into results
 def process_detection_results(results, frame_height):
     objects = []
     if not results or len(results) == 0:
@@ -210,7 +218,8 @@ def process_detection_results(results, frame_height):
             conf_list = conf_values.cpu().numpy().tolist()
         except Exception:
             conf_list = list(conf_values)
-
+    
+    # converts raw predictrons from YOLO and converts it to structured list of detected objects
     for idx, cls_id in enumerate(cls_list):
         label = names.get(int(cls_id), str(int(cls_id)))
         confidence = conf_list[idx] if idx < len(conf_list) else None
@@ -231,7 +240,7 @@ def process_detection_results(results, frame_height):
 
     return objects
 
-
+# For tts functionality 
 def init_tts():
     if not pyttsx3:
         return None
@@ -243,7 +252,7 @@ def init_tts():
         print("Warning: TTS initialization failed:", e)
         return None
 
-
+# if tts fails, this is a fall back
 def speak_windows_fallback(text):
     try:
         powershell_command = [
@@ -264,7 +273,7 @@ def speak_windows_fallback(text):
         print("Warning: Windows TTS fallback failed:", e)
         print(text)
 
-
+# ensures tts can simultaneously occur while video occurs.
 def speak(text):
     if not text:
         return
@@ -287,7 +296,7 @@ def speak(text):
 
     Thread(target=_speak, daemon=True).start()
 
-
+# function to interact with ultrasonic sensor component
 def init_ultrasonic_sensor():
     if not serial or not ultrasonic_enabled:
         return None
@@ -299,7 +308,7 @@ def init_ultrasonic_sensor():
         print(f"Ultrasonic sensor unavailable: {e}")
         return None
 
-
+# function to format raw data to 
 def read_ultrasonic_distance(serial_port):
     if serial_port is None:
         return None
@@ -312,7 +321,7 @@ def read_ultrasonic_distance(serial_port):
     except Exception:
         return None
 
-
+# function to help determine and objects pos in frame
 def object_position(box, frame_width):
     center_x = (box[0] + box[2]) / 2
     if center_x < frame_width * 0.33:
@@ -321,7 +330,7 @@ def object_position(box, frame_width):
         return "right"
     return "ahead"
 
-
+# building the open ai prompt to report back to the user
 def build_scene_prompt(objects, ultrasonic_distance, frame_width):
     prompt_lines = [
         "You are an assistive AI describing the scene to a visually impaired user.",
@@ -341,7 +350,7 @@ def build_scene_prompt(objects, ultrasonic_distance, frame_width):
     prompt_lines.append("Generate the spoken guidance now.")
     return "\n".join(prompt_lines)
 
-
+# using the earlier prompt to generate
 def generate_ai_description(objects, ultrasonic_distance, frame_width):
     if not enable_ai_description or not openai or not os.getenv("OPENAI_API_KEY"):
         return None
@@ -362,7 +371,7 @@ def generate_ai_description(objects, ultrasonic_distance, frame_width):
         print("Warning: AI description generation failed:", e)
         return None
 
-
+# takes the objects detected by yolo, distance and camera width to return feedback on object distance + give avoidance instructions
 def get_accessibility_feedback(objects, ultrasonic_distance, frame_width):
     if enable_ai_description:
         ai_messages = generate_ai_description(objects, ultrasonic_distance, frame_width)
@@ -393,7 +402,7 @@ def get_accessibility_feedback(objects, ultrasonic_distance, frame_width):
         messages.append("No hazards detected in the current scene.")
     return messages
 
-
+# plays sound (:
 def play_sound(path):
     global sound_playing
     if sound_playing:
@@ -415,7 +424,7 @@ def play_sound(path):
 engine = init_tts() if pyttsx3 else None
 ultrasonic_serial = init_ultrasonic_sensor()
 
-# ================== MAIN LOOP ==================
+# main loop
 try:
     while True:
         ret, frame = capture.read()
