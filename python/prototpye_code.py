@@ -40,6 +40,7 @@ if not os.path.isfile(model_path):
     if os.path.isfile(alt_model):
         model_path = alt_model
 
+# yolo model used, can be changed out if needed.
 model = YOLO(model_path)
 model.conf = 0.25
 model.iou = 0.45
